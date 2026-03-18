@@ -1,15 +1,13 @@
 package com.rftp.packet;
 
+
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
+import com.rftp.utils.Config;
+
 public class Packet {
 
-    public static final byte TYPE_DATA = 1;
-    public static final byte TYPE_ACK = 2;
-    public static final byte TYPE_FIN = 3;
-
-    private static final int HEADER_SIZE = 10;
 
     private byte version;
     private byte type;
@@ -26,7 +24,7 @@ public class Packet {
     }
 
     public byte[] toBytes(){
-        ByteBuffer buffer = ByteBuffer.allocate(HEADER_SIZE + payload.length);
+        ByteBuffer buffer = ByteBuffer.allocate(Config.HEADER_SIZE + payload.length);
         buffer.order(ByteOrder.BIG_ENDIAN);
         buffer.put(version);
         buffer.put(type);

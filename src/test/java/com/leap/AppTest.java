@@ -1,4 +1,4 @@
-package com.rftp;
+package com.leap;
 
 import junit.framework.Test;
 import junit.framework.TestCase;

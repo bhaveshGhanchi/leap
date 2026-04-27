@@ -2,3 +2,17 @@ target/
 *.class
 .idea/
 .vscode/
+
+# Test data (gitignored, regenerate with scripts/gen_bench_data.sh)
+bench_data/
+
+# Default and ad-hoc receive output directories
+received/
+received_*/
+test_out_*/
+test_md5_*/
+
+# Runtime logs
+leap_log.csv
+rftp_log.csv
+*.log

@@ -1,4 +1,4 @@
-package com.rftp.file;
+package com.leap.file;
 
 import java.io.FileOutputStream;
 import java.io.IOException;

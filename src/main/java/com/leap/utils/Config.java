@@ -1,4 +1,4 @@
-package com.rftp.utils;
+package com.leap.utils;
 
 public class Config {
 
@@ -27,7 +27,8 @@ public class Config {
 
     /* ================= PROTOCOL STRUCTURE ================= */
 
-    public static final int HEADER_SIZE = 10;
+    // version(1) + type(1) + seqNum(4) + payloadLen(4) + crc32(4)
+    public static final int HEADER_SIZE = 14;
 
     /* ================= PACKET SETTINGS ================= */
 
@@ -40,10 +41,16 @@ public class Config {
     // Protocol version
     public static final byte PROTOCOL_VERSION = 1;
 
+    // SHA-256 digest size in bytes (end-to-end file integrity hash in FIN payload)
+    public static final int HASH_LENGTH = 32;
+
     /* ================= RETRANSMISSION SETTINGS ================= */
 
-    // Maximum attempts for retransmission before giving up
-    public static final int MAX_RETRIES = 5;
+    // Maximum consecutive retransmission attempts on the same base before
+    // aborting. 10 is a pragmatic middle ground: survives moderate bursty
+    // loss (≤15%) but still bounds worst-case transfer time. TCP has no
+    // such ceiling; LEAP gives up on purpose instead of hanging silently.
+    public static final int MAX_RETRIES = 10;
 
     // Number of duplicate ACKs required to trigger fast retransmit
     public static final int DUP_ACK_THRESHOLD = 3;
@@ -59,6 +66,6 @@ public class Config {
     /* ================= LOGGING ================= */
 
     // Enable / disable debug logs
-    public static final boolean DEBUG = true;
+    public static final boolean DEBUG = false;
 
 }

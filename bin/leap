@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# leap — thin launcher for the LEAP jar.
+# Resolves the jar relative to this script so it works from any cwd.
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+JAR="$PROJECT_ROOT/target/leap.jar"
+
+if [[ ! -f "$JAR" ]]; then
+  echo "leap: jar not found at $JAR" >&2
+  echo "      run 'mvn package' from $PROJECT_ROOT first." >&2
+  exit 1
+fi
+
+exec java -jar "$JAR" "$@"

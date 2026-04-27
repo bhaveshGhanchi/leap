@@ -2,7 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 # Load CSV
-df = pd.read_csv("rftp_log.csv")
+df = pd.read_csv("leap_log.csv")
 
 # Convert time to seconds
 df["time"] = df["time"] / 1000.0

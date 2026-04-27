@@ -1,204 +1,279 @@
-# 🚀 Reliable File Transfer Protocol (RFTP)
+# LEAP — Loss-aware End-to-end Acknowledged Protocol
 
-A custom **TCP-like reliable transport protocol built over UDP**, implementing reliability, congestion control, and performance benchmarking.
+A TCP-style reliable transport protocol implemented from scratch on top of UDP,
+with a CLI, an end-to-end SHA-256 integrity check, and a benchmarking harness
+that compares it against TCP under controlled packet loss.
 
----
-
-## 📌 Overview
-
-RFTP is a user-space transport protocol designed to provide:
-
-- Reliable data delivery over UDP
-- Efficient handling of packet loss
-- Adaptive transmission using congestion control
-- Performance benchmarking under different network conditions
-
-The protocol mimics core TCP behaviors while remaining lightweight and fully customizable.
+> **LEAP** stands for **L**oss-aware **E**nd-to-end **A**cknowledged
+> **P**rotocol — a single jump across a lossy network with retransmits,
+> congestion control, and verified delivery.
 
 ---
 
-## ⚙️ Features
+## Status
 
-### 🔹 Reliability
-- Sequence numbers
-- Acknowledgments (ACK)
-- Retransmission on loss
+| Component | State |
+|---|---|
+| Reliable transport (sliding window, fast retransmit, RTO, congestion control) | done, tested at 0%/5%/10% loss on localhost |
+| End-to-end SHA-256 integrity | done, verified on every transfer |
+| CLI (`leap send` / `leap receive` / `leap benchmark`) | done |
+| TCP baseline (`TcpServer` / `TcpClient`) | done |
+| Loss-simulation modes (`app`, `proxy`, `kernel`) | implemented; only `proxy` exercised in measurements |
+| Benchmark orchestrator + CSV writer | done |
+| Plotting script (`plot_benchmark.py`) | done; chart in `docs/benchmark.png` |
+| Measured sweep | one run: 10 MiB × {0, 1%, 5%, 10%, 20%} × 3 trials, proxy mode |
+| `kernel`-mode (pfctl) measurements | not yet run |
+| Unit tests | not yet written |
 
-### 🔹 Advanced Transport Mechanisms
-- Selective Repeat ARQ
-- Fast Retransmit (duplicate ACK detection)
-- Sliding Window Protocol
-
-### 🔹 Congestion Control
-- Slow Start
-- Congestion Avoidance (AIMD)
-- Dynamic congestion window (cwnd)
-- Threshold (ssthresh) adjustment
-
-### 🔹 Adaptive Timeout
-- RTT-based timeout estimation
-- Prevents unnecessary retransmissions
-- Improves stability under varying network conditions
-
-### 🔹 File Transfer
-- Chunk-based file transmission
-- In-order reconstruction at receiver
-- FIN-based connection termination
-
-### 🔹 Benchmarking & Metrics
-- Throughput
-- Retransmissions
-- Efficiency
-- Transfer time
+The numbers in this README are from the single sweep above, recorded with
+`MAX_RETRIES = 5`. The default has since been raised to 10 to survive bursty
+loss; a re-measurement with the new ceiling is pending.
 
 ---
 
-## 🧱 Architecture
+## What this project is
 
-    Client → Transport Layer → UDP → Server
+LEAP is **TCP rebuilt in user space** — sequence numbers, cumulative ACKs,
+sliding window, fast retransmit, slow start, congestion avoidance, adaptive
+RTO, all running over Java `DatagramSocket`s. The point isn't to be faster
+than TCP; it's to:
 
-### Components
+1. Show what every box in the TCP state machine actually does, with real code.
+2. Measure it honestly under packet loss, against TCP, with real numbers.
 
-    packet/     → Packet structure & serialization
-    file/       → FileChunker & FileAssembler
-    client/     → Sender logic
-    server/     → Receiver logic
-    utils/      → Configurations
-
----
-
-## 📦 Packet Structure
-
-    | Version | Type | Sequence Number | Length | Payload |
-
-### Packet Types
-- DATA → file data
-- ACK → acknowledgment
-- FIN → end of transmission
+The repository ships with a CLI (`leap send` / `leap receive`), a
+benchmark orchestrator that sweeps loss × file-size × trial, three different
+loss-simulation modes, and a plotting script that turns the CSV output into a
+chart.
 
 ---
 
-## 🔄 Protocol Workflow
+## Quick start
 
-1. Client reads file in chunks
-2. Sends packets using sliding window
-3. Server buffers out-of-order packets (Selective Repeat)
-4. ACKs indicate next expected sequence
-5. Client retransmits missing packets
-6. Congestion control adapts sending rate
-7. FIN packet signals completion
+```bash
+# Build (Java 11+, Maven 3.6+)
+mvn package
 
----
+# Send a file
+./bin/leap send <file> --to <host:port>
 
-## 📊 Benchmark Results
+# Receive (in another terminal)
+./bin/leap receive --port 4040 --output received/
 
-### Average Performance
+# Or pass --help to either command for full flag list
+./bin/leap send --help
+./bin/leap receive --help
+```
 
-| Loss | Time (ms) | Throughput (pkt/s) | Retries | Fast Retx | Total Pkts | Efficiency |
-|------|----------|--------------------|--------|-----------|------------|------------|
-| 0.0  | 16       | 12282              | 0      | 0         | 196        | 100%       |
-| 0.1  | 1318     | 154                | 6      | 16        | 236        | 83.1%      |
-| 0.3  | 7393     | 26.75              | 36     | 22        | 349        | 56.8%      |
-| 0.5  | 21476    | 9.01               | 108    | 20        | 530        | 37.7%      |
+Example end-to-end transfer:
 
----
-
-## 📊 RFTP vs TCP Comparison
-
-| Protocol | Loss | Time (ms) | Throughput | Retries | Efficiency |
-|---------|------|----------|-----------|--------|-----------|
-| RFTP    | 0.0  | 16       | 12282 pkt/s | 0      | 100% |
-| RFTP    | 0.1  | 1318     | 154 pkt/s   | 6      | 83.1% |
-| RFTP    | 0.3  | 7393     | 26.75 pkt/s | 36     | 56.8% |
-| RFTP    | 0.5  | 21476    | 9.01 pkt/s  | 108    | 37.7% |
-| TCP     | 0.0  | 9 ms     | ~21 MB/s    | 0      | ~100% |
-
-
-
-## 🔍 RFTP vs TCP Analysis
-
-- TCP achieves significantly higher throughput (~21 MB/s) due to kernel-level optimizations and zero-copy buffering.
-- RFTP operates in user space, introducing overhead from manual packet handling and retransmissions.
-- Under packet loss, RFTP demonstrates robustness and graceful degradation, while TCP internally handles loss using advanced algorithms (Cubic/BBR).
-- RFTP exposes transport-layer mechanisms (congestion control, retransmission, RTT estimation), providing deeper insight into protocol behavior.
-- While TCP is optimized for performance, RFTP is valuable for understanding and experimenting with transport-layer design.
-
-
-## 📈 Key Observations
-
-- Performance degrades gracefully with increasing packet loss  
-- Fast retransmit handles most losses at low/moderate levels  
-- Timeouts dominate under heavy loss (50%)  
-- Selective Repeat reduces redundant retransmissions  
-- Congestion control stabilizes throughput  
+```bash
+./bin/leap receive --port 4040 --output /tmp/in &
+./bin/leap send bench_data/test_1m.bin --to localhost:4040
+# → Throughput: 15.4 MB/s, Efficiency: 100.0%, integrity verified (sha256=...)
+```
 
 ---
 
-## ▶️ How to Run
+## Protocol design
 
-### 1. Start Server
+### Packet format
 
-    java -cp target/classes com.rftp.server.Server
+```
+| version (1B) | type (1B) | seqNum (4B) | payloadLen (4B) | crc32 (4B) | payload |
+```
 
-### 2. Run Client
+Three packet types: `DATA`, `ACK`, `FIN`. The `FIN` from the client carries
+the file's full SHA-256; the server compares its own digest of the assembled
+file before acknowledging. Per-packet CRC32 catches in-flight corruption.
 
-    java -cp target/classes com.rftp.client.Client
+### Reliability mechanisms
 
----
+- Cumulative ACKs (next-expected-byte semantics).
+- Sliding window with configurable size (`--window`, default 20).
+- Fast retransmit on three duplicate ACKs.
+- Adaptive RTO: estimated_RTT + 4 · dev_RTT, capped at 2 s, exponential
+  backoff on timeout.
+- Selective receiver buffer for out-of-order delivery, in-order flush to disk.
+- `MAX_RETRIES = 10` consecutive timeouts on the same window base before the
+  client aborts. (TCP has no equivalent ceiling; this is intentional, so a
+  truly broken path can't hang forever.)
 
-## ⚙️ Configuration
+### Congestion control
 
-Modify `Config.java`:
+TCP-Tahoe-style: slow start → congestion avoidance with AIMD. On loss,
+`ssthresh = max(cwnd/2, 4)` and `cwnd = 1`. `ssthresh` floor at 4 prevents
+collapse during early-window losses.
 
-    LOSS_PROBABILITY = 0.3
-    WINDOW_SIZE = 5
-    CHUNK_SIZE = 1024
-    TIMEOUT_MS = 200
+### Integrity
 
----
+Every transfer computes SHA-256 on both ends and the server logs:
 
-## 🧪 Experiments
+```
+[OK]  127.0.0.1:54321 — integrity verified (sha256=58acd477...)
+```
 
-The protocol was tested under varying packet loss conditions:
-
-    0%, 10%, 30%, 50%
-
-Each test was run multiple times and averaged.
-
----
-
-## 📈 Congestion Control Visualization
-
-![CWND](cwnd_vs_time.png)
-![ssthresh](ssthresh_vs_time.png)
-![Events](events.png)
-
-## 🔮 Future Improvements
-
-- TCP Cubic / BBR congestion control  
-- Selective ACK (SACK)  
-- Checksum for data integrity  
-- Multi-threaded receiver  
-- Visualization of cwnd vs time  
+If the digests disagree, the server logs `[FAIL] integrity mismatch` and the
+file is left on disk for inspection.
 
 ---
 
-## 🧠 Learnings
+## Repository layout
 
-- Transport layer protocol design  
-- Reliability vs performance trade-offs  
-- Congestion control behavior  
-- Impact of packet loss on throughput  
+```
+src/main/java/com/leap/
+  packet/        Packet wire format and (de)serialization
+  file/          FileChunker (sender) and FileAssembler (receiver)
+  client/        Client.java — sender + congestion control
+  server/        Server.java — multi-session receiver
+  benchmark/     TcpServer / TcpClient / Proxy / Benchmark harness
+  utils/         Config constants and ChecksumUtils (SHA-256, CRC32)
+
+bin/leap                Shell launcher for the shaded jar
+scripts/
+  gen_bench_data.sh     Generate 1 / 10 / 100 MiB test files
+  loss_up.sh            macOS pfctl/dummynet packet-loss installer
+  loss_down.sh          Tear down kernel-level loss
+plot_benchmark.py       Render docs/benchmark.png from the CSV
+plot_leap.py            Render per-transfer cwnd / ssthresh charts from leap_log.csv
+```
 
 ---
 
-## 🏆 Summary
+## Benchmarking
 
-RFTP replicates core TCP mechanisms:
+The benchmark sweeps `(loss_rate × file_size × trial)`, runs each cell with
+both protocols, and writes one CSV row per transfer.
 
-- Reliable delivery  
-- Efficient retransmission  
-- Congestion-aware transmission  
-- Adaptive timeout handling  
+```bash
+# Generate test files (writes to bench_data/, gitignored)
+./scripts/gen_bench_data.sh
+
+# Run the default sweep (10 MiB, 5 loss rates, 3 trials, proxy mode)
+./bin/leap benchmark --loss-mode proxy --sizes 10m --trials 3 \
+    --loss-rates 0,0.01,0.05,0.1,0.2 --protocols leap,tcp
+
+# Plot
+python3 plot_benchmark.py
+# → writes docs/benchmark.png
+```
+
+### Loss-simulation methodology
+
+Honest simulation of packet loss is harder than it looks, so the harness
+supports three independent modes and the README is upfront about what each
+mode actually models.
+
+| Mode | How loss is applied | Valid for | Requires |
+|---|---|---|---|
+| `app` | Server drops bytes/datagrams at the application layer | LEAP only | nothing |
+| `proxy` | Userspace UDP forwarder drops datagrams at rate `p` | LEAP | nothing |
+| `kernel` | macOS `pfctl` + `dummynet` pipe with `plr p` on `lo0` | LEAP **and** TCP | `sudo` |
+
+**Important caveat for TCP:** an app-layer proxy cannot faithfully model TCP
+loss — dropping bytes after the kernel has already ACK'd them leaves the
+connection wedged. So in `proxy` mode the TCP path is a straight passthrough
+and the recorded TCP numbers are essentially "TCP at 0% loss with one extra
+hop". Real TCP-under-loss numbers require `kernel` mode:
+
+```bash
+sudo ./scripts/loss_up.sh 0.05         # install 5% loss on lo0
+./bin/leap benchmark --loss-mode kernel --sizes 10m --trials 3 \
+    --loss-rates 0.05 --protocols tcp
+sudo ./scripts/loss_down.sh            # tear it down
+```
+
+### Measured results — 10 MiB, proxy mode, 3 trials per cell
+
+Run on macOS, loopback, `MAX_RETRIES = 5` (the default at the time of
+measurement; current default is 10 — see Status section above):
+
+| Loss rate | LEAP throughput | LEAP retransmits | LEAP efficiency | LEAP integrity | TCP throughput † |
+|---:|---:|---:|---:|---:|---:|
+| 0%   | 46.2 MB/s | 0    | 100.0% | 3 / 3 | 239 MB/s |
+| 1%   |  7.3 MB/s | ~106 |  99.0% | 3 / 3 | 199 MB/s |
+| 5%   | 342 KB/s  | ~571 |  94.7% | 3 / 3 | 192 MB/s |
+| 10%  |  ~96 KB/s | ~1290|  88.8% | 2 / 3 ‡ | 198 MB/s |
+| 20%  | *aborted* | n/a  |   n/a  | 0 / 3 | 195 MB/s |
+
+† TCP via proxy is a passthrough — see the caveat above. The TCP column is
+shown for plumbing reference, not as a fair protocol comparison. For honest
+TCP-under-loss numbers, run the harness in `kernel` mode (not yet exercised
+in this repo's measurements).
+
+‡ One of the three trials at 10% loss tripped the `MAX_RETRIES = 5` ceiling
+in use during measurement; the other two completed cleanly. The default
+ceiling was subsequently raised to 10 to make this less likely on bursty
+loss patterns.
+
+Raw CSV: `docs/benchmark_results.csv`. Chart:
+
+![Benchmark](docs/benchmark.png)
 
 ---
+
+## Configuration knobs
+
+`src/main/java/com/leap/utils/Config.java`:
+
+```java
+PORT              = 4040    // default UDP port
+INITIAL_CWND      = 1       // initial congestion window
+SSTHRESH          = 16      // initial slow-start threshold
+WINDOW_SIZE       = 5       // default sliding window
+TIMEOUT_MS        = 200     // initial socket SO_TIMEOUT
+CHUNK_SIZE        = 1024    // payload bytes per packet
+DUP_ACK_THRESHOLD = 3       // fast-retransmit trigger
+MAX_RETRIES       = 10      // consecutive timeouts before client aborts
+HASH_LENGTH       = 32      // SHA-256 digest size
+```
+
+CLI flags (`--window`, `--chunk`, `--port`, `--loss`, `--debug`) override the
+defaults at runtime.
+
+---
+
+## Limitations and what's intentionally out of scope
+
+- **20% loss is the wall.** With the default retry ceiling, LEAP cannot push
+  through 20%+ packet loss; transfers abort by design rather than hang. Raise
+  `MAX_RETRIES` if you need to survive worse paths.
+- **Single sender → single receiver, single file per session.** No multiplex,
+  no resume, no SACK.
+- **No encryption, no auth, no NAT traversal.** Localhost / LAN tested only.
+- **TCP-vs-LEAP under loss requires `kernel` mode.** The `proxy` mode TCP
+  numbers are not a fair head-to-head; that's documented above and in the
+  `Proxy.java` class comment, not hidden.
+
+---
+
+## Roadmap
+
+- [x] Reliable transfer with retransmission, sliding window, congestion control
+- [x] Adaptive RTO (RFC 6298 style)
+- [x] End-to-end SHA-256 integrity
+- [x] CLI (`send` / `receive` / `benchmark`)
+- [x] Benchmarking harness with three loss-simulation modes (`app`, `proxy`, `kernel`)
+- [x] One measured sweep (10 MiB, proxy mode, 5 loss rates × 3 trials)
+- [ ] Re-run sweep with `MAX_RETRIES = 10` to update the table above
+- [ ] Kernel-mode (`pfctl`) sweep so the TCP-vs-LEAP-under-loss column is real
+- [ ] Unit tests (a localhost integrity smoke test at minimum)
+- [ ] Selective ACK (SACK) for tighter recovery on bursty loss
+- [ ] Resume support (persist last cumulative ACK on both sides)
+- [ ] TCP Cubic / BBR-style congestion control behind a `--cc` flag
+- [ ] Encryption (libsodium / Noise) for non-loopback use
+
+---
+
+## Building and running from the IDE
+
+```bash
+mvn package -DskipTests        # → target/leap.jar
+java -jar target/leap.jar send <file> --to localhost:4040
+java -jar target/leap.jar receive --port 4040 --output received/
+java -jar target/leap.jar benchmark --help
+```
+
+The `bin/leap` launcher is a thin wrapper that resolves the jar relative to
+its own location, so you can put `bin/` on `PATH` and call `leap` from
+anywhere.

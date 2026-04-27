@@ -2,7 +2,8 @@
 
 A TCP-style reliable transport protocol implemented from scratch on top of UDP,
 with a CLI, an end-to-end SHA-256 integrity check, and a benchmarking harness
-that compares it against TCP under controlled packet loss.
+that measures its behavior under controlled packet loss alongside a TCP
+baseline.
 
 > **LEAP** stands for **L**oss-aware **E**nd-to-end **A**cknowledged
 > **P**rotocol — a single jump across a lossy network with retransmits,
@@ -18,14 +19,14 @@ that compares it against TCP under controlled packet loss.
 | End-to-end SHA-256 integrity | done, verified on every transfer |
 | CLI (`leap send` / `leap receive` / `leap benchmark`) | done |
 | TCP baseline (`TcpServer` / `TcpClient`) | done |
-| Loss-simulation modes (`app`, `proxy`, `kernel`) | implemented; only `proxy` exercised in measurements |
+| Loss-simulation modes (`app`, `proxy`, `kernel`) | all three implemented; only `proxy` produces honest measurements on macOS — see "Kernel mode on macOS" below |
 | Benchmark orchestrator + CSV writer | done |
 | Plotting script (`plot_benchmark.py`) | done; chart in `docs/benchmark.png` |
 | Measured sweep | one run: 10 MiB × {0, 1%, 5%, 10%, 20%} × 3 trials, proxy mode |
-| `kernel`-mode (pfctl) measurements | not yet run |
+| `kernel`-mode (pfctl) measurements | attempted on macOS 14; pf+dummynet does not shape `lo0` traffic on this version, so the run produced no real drops. Failure-mode CSV preserved at `docs/benchmark_kernel_macos14_no_drops.csv`. Linux re-run pending. |
 | Unit tests | not yet written |
 
-The numbers in this README are from the single sweep above, recorded with
+The LEAP numbers in this README are from the proxy-mode sweep, recorded with
 `MAX_RETRIES = 5`. The default has since been raised to 10 to survive bursty
 loss; a re-measurement with the new ceiling is pending.
 
@@ -39,7 +40,9 @@ RTO, all running over Java `DatagramSocket`s. The point isn't to be faster
 than TCP; it's to:
 
 1. Show what every box in the TCP state machine actually does, with real code.
-2. Measure it honestly under packet loss, against TCP, with real numbers.
+2. Measure its behavior honestly under packet loss, with real numbers and a
+   documented methodology (including what the test environment does and
+   doesn't let us measure — see "Kernel mode on macOS" below).
 
 The repository ships with a CLI (`leap send` / `leap receive`), a
 benchmark orchestrator that sweeps loss × file-size × trial, three different
@@ -134,6 +137,7 @@ scripts/
   gen_bench_data.sh     Generate 1 / 10 / 100 MiB test files
   loss_up.sh            macOS pfctl/dummynet packet-loss installer
   loss_down.sh          Tear down kernel-level loss
+  kernel_sweep.sh       Drive a full kernel-mode sweep (sudo wrapper)
 plot_benchmark.py       Render docs/benchmark.png from the CSV
 plot_leap.py            Render per-transfer cwnd / ssthresh charts from leap_log.csv
 ```
@@ -162,46 +166,35 @@ python3 plot_benchmark.py
 
 Honest simulation of packet loss is harder than it looks, so the harness
 supports three independent modes and the README is upfront about what each
-mode actually models.
+mode actually models — and which one was actually used to produce the
+numbers below.
 
 | Mode | How loss is applied | Valid for | Requires |
 |---|---|---|---|
 | `app` | Server drops bytes/datagrams at the application layer | LEAP only | nothing |
-| `proxy` | Userspace UDP forwarder drops datagrams at rate `p` | LEAP | nothing |
-| `kernel` | macOS `pfctl` + `dummynet` pipe with `plr p` on `lo0` | LEAP **and** TCP | `sudo` |
+| `proxy` | Userspace UDP forwarder drops datagrams at rate `p` | LEAP only (see below) | nothing |
+| `kernel` | OS-level packet drop (`pfctl`+`dummynet` on macOS, `tc netem` on Linux) | LEAP **and** TCP | `sudo` |
 
-**Important caveat for TCP:** an app-layer proxy cannot faithfully model TCP
-loss — dropping bytes after the kernel has already ACK'd them leaves the
-connection wedged. So in `proxy` mode the TCP path is a straight passthrough
-and the recorded TCP numbers are essentially "TCP at 0% loss with one extra
-hop". Real TCP-under-loss numbers require `kernel` mode:
+**Why `proxy` doesn't measure TCP under loss.** An app-layer proxy can't
+faithfully drop TCP bytes mid-stream — the kernel has already ACK'd them by
+the time userspace sees them, so dropping leaves the connection wedged. The
+proxy mode is therefore LEAP-only by design; running TCP through it just
+measures TCP at 0% loss with one extra hop.
 
-```bash
-sudo ./scripts/loss_up.sh 0.05         # install 5% loss on lo0
-./bin/leap benchmark --loss-mode kernel --sizes 10m --trials 3 \
-    --loss-rates 0.05 --protocols tcp
-sudo ./scripts/loss_down.sh            # tear it down
-```
-
-### Measured results — 10 MiB, proxy mode, 3 trials per cell
+### Measured results — LEAP, 10 MiB, proxy mode, 3 trials per cell
 
 Run on macOS, loopback, `MAX_RETRIES = 5` (the default at the time of
 measurement; current default is 10 — see Status section above):
 
-| Loss rate | LEAP throughput | LEAP retransmits | LEAP efficiency | LEAP integrity | TCP throughput † |
-|---:|---:|---:|---:|---:|---:|
-| 0%   | 46.2 MB/s | 0    | 100.0% | 3 / 3 | 239 MB/s |
-| 1%   |  7.3 MB/s | ~106 |  99.0% | 3 / 3 | 199 MB/s |
-| 5%   | 342 KB/s  | ~571 |  94.7% | 3 / 3 | 192 MB/s |
-| 10%  |  ~96 KB/s | ~1290|  88.8% | 2 / 3 ‡ | 198 MB/s |
-| 20%  | *aborted* | n/a  |   n/a  | 0 / 3 | 195 MB/s |
+| Loss rate | Throughput | Retransmits | Efficiency | Integrity |
+|---:|---:|---:|---:|---:|
+| 0%   | 46.2 MB/s | 0    | 100.0% | 3 / 3 |
+| 1%   |  7.3 MB/s | ~106 |  99.0% | 3 / 3 |
+| 5%   | 342 KB/s  | ~571 |  94.7% | 3 / 3 |
+| 10%  |  ~96 KB/s | ~1290|  88.8% | 2 / 3 † |
+| 20%  | *aborted* | n/a  |   n/a  | 0 / 3 |
 
-† TCP via proxy is a passthrough — see the caveat above. The TCP column is
-shown for plumbing reference, not as a fair protocol comparison. For honest
-TCP-under-loss numbers, run the harness in `kernel` mode (not yet exercised
-in this repo's measurements).
-
-‡ One of the three trials at 10% loss tripped the `MAX_RETRIES = 5` ceiling
+† One of the three trials at 10% loss tripped the `MAX_RETRIES = 5` ceiling
 in use during measurement; the other two completed cleanly. The default
 ceiling was subsequently raised to 10 to make this less likely on bursty
 loss patterns.
@@ -209,6 +202,49 @@ loss patterns.
 Raw CSV: `docs/benchmark_results.csv`. Chart:
 
 ![Benchmark](docs/benchmark.png)
+
+There is **no head-to-head TCP-vs-LEAP throughput table in this README** by
+design — see the next section for why, and how to produce one honestly on
+Linux.
+
+### Kernel mode on macOS — what we tried and why it didn't ship
+
+The orchestrator and helper scripts for kernel-mode loss are committed and
+runnable:
+
+```
+scripts/loss_up.sh        # pfctl + dummynet pipe on lo0 with plr=p
+scripts/loss_down.sh      # tear it all down (also runs on EXIT trap)
+scripts/kernel_sweep.sh   # full sudo-wrapped sweep, writes docs/benchmark_kernel.csv
+```
+
+A full sweep was attempted on macOS 14 (10 MiB × {0, 1%, 5%, 10%} × 3 trials
+× LEAP+TCP). Every run reported the dummynet pipe configured correctly
+(`dnctl pipe show` → `plr 0.050000` etc.) and pf enabled, but the resulting
+LEAP numbers showed **0 retransmits and 100% efficiency at every loss rate**
+— full-speed transfers, no drops actually occurring. `sudo pfctl -si`
+reported `Counters: match 0` while traffic was flowing.
+
+This is a known macOS-Sonoma/Sequoia behavior: the kernel's loopback
+fast-path bypasses the pf hook on `lo0`, so dummynet rules attached there
+load successfully but match nothing. The failure-mode CSV is preserved at
+`docs/benchmark_kernel_macos14_no_drops.csv` as evidence — every LEAP row
+in that file has `retransmits=0,efficiency_pct=100.00`, identical to the
+0% row, confirming no real drops occurred.
+
+**To produce real TCP-vs-LEAP-under-loss numbers, run on Linux**, where
+`tc netem` shapes loopback reliably:
+
+```bash
+sudo tc qdisc add dev lo root netem loss 5%
+./bin/leap benchmark --loss-mode kernel --sizes 10m --trials 3 \
+    --loss-rates 0.05 --protocols leap,tcp --csv docs/benchmark_kernel.csv
+sudo tc qdisc del dev lo root
+```
+
+That sweep is on the roadmap and will be filled in once a Linux box is
+available. The macOS scripts are kept in-tree because they're correct on
+older macOS and are the right starting point for a Linux port.
 
 ---
 
@@ -241,9 +277,12 @@ defaults at runtime.
 - **Single sender → single receiver, single file per session.** No multiplex,
   no resume, no SACK.
 - **No encryption, no auth, no NAT traversal.** Localhost / LAN tested only.
-- **TCP-vs-LEAP under loss requires `kernel` mode.** The `proxy` mode TCP
-  numbers are not a fair head-to-head; that's documented above and in the
-  `Proxy.java` class comment, not hidden.
+- **No measured TCP-vs-LEAP head-to-head under loss in this README.** Honest
+  comparison requires kernel-level packet drops. macOS 14+ doesn't shape
+  `lo0` traffic via pf+dummynet (see "Kernel mode on macOS"), and a Linux
+  `tc netem` re-run is on the roadmap. The `proxy` mode TCP numbers in the
+  raw CSV (`docs/benchmark_results.csv`) are passthroughs and should not be
+  read as a comparison.
 
 ---
 
@@ -254,9 +293,10 @@ defaults at runtime.
 - [x] End-to-end SHA-256 integrity
 - [x] CLI (`send` / `receive` / `benchmark`)
 - [x] Benchmarking harness with three loss-simulation modes (`app`, `proxy`, `kernel`)
-- [x] One measured sweep (10 MiB, proxy mode, 5 loss rates × 3 trials)
-- [ ] Re-run sweep with `MAX_RETRIES = 10` to update the table above
-- [ ] Kernel-mode (`pfctl`) sweep so the TCP-vs-LEAP-under-loss column is real
+- [x] Kernel-mode orchestrator (`scripts/kernel_sweep.sh`) and helper scripts
+- [x] One measured sweep (LEAP, 10 MiB, proxy mode, 5 loss rates × 3 trials)
+- [ ] Re-run proxy sweep with `MAX_RETRIES = 10` to update the table above
+- [ ] Linux kernel-mode sweep with `tc netem` to produce the real TCP-vs-LEAP-under-loss table (macOS pf+dummynet does not shape `lo0` on macOS 14+)
 - [ ] Unit tests (a localhost integrity smoke test at minimum)
 - [ ] Selective ACK (SACK) for tighter recovery on bursty loss
 - [ ] Resume support (persist last cumulative ACK on both sides)

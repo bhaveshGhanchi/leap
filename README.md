@@ -1,5 +1,7 @@
 # LEAP — Loss-aware End-to-end Acknowledged Protocol
 
+> **Companion blog series:** [Building TCP From Scratch (1/6) on dev.to](https://dev.to/bhaveshghanchi/building-tcp-from-scratch-16-why-bother-when-tcp-exists-3aom). A 6-part walkthrough of this code, with measurements and the bugs and dead ends included.
+
 A TCP-style reliable transport protocol implemented from scratch on top of UDP,
 with a CLI, an end-to-end SHA-256 integrity check, and a benchmarking harness
 that measures its behavior under controlled packet loss alongside a TCP

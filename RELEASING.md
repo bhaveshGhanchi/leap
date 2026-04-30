@@ -30,7 +30,7 @@ Use this checklist when tagging a version so reviewers can run LEAP without clon
 4. **Create a GitHub Release**  
    - Tag: `v1.0.0` (or matching version).  
    - **Attach binary:** upload `target/leap.jar` (rename upload to `leap.jar` in the UI if you prefer a clean name).  
-   - Paste the release notes below (edit version/links as needed).
+   - Paste the release notes below (README link is set for `bhaveshGhanchi/leap`).
 
 ## Release notes template
 
@@ -47,7 +47,7 @@ java -jar leap.jar send path/to/file.bin --to localhost:4040
 ```
 
 - Full CLI: `java -jar leap.jar --help`
-- Source and methodology: [repository README](https://github.com/YOUR_USER/leap#readme)
+- Source and methodology: [repository README](https://github.com/bhaveshGhanchi/leap#readme)
 
 ## What’s in this build
 
@@ -57,5 +57,3 @@ java -jar leap.jar send path/to/file.bin --to localhost:4040
 
 **Blog:** [Building TCP From Scratch on dev.to](https://dev.to/bhaveshghanchi/building-tcp-from-scratch-16-why-bother-when-tcp-exists-3aom)
 ```
-
-Replace `YOUR_USER` with your GitHub username or org when you publish.

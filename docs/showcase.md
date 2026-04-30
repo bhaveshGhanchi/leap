@@ -16,7 +16,7 @@ Suggested **topics** on the repo: `udp`, `java`, `networking`, `tcp`, `reliable-
 
 LEAP implements TCP-like reliability on top of UDP: cumulative ACKs, sliding window, fast retransmit, adaptive RTO, and Tahoe-style congestion control using Java `DatagramSocket`. Includes end-to-end SHA-256 verification and a benchmark harness with controlled packet-loss simulation. Documented methodology and measured results; companion blog series on building and debugging the stack.
 
-**Links:** GitHub repository · [Building TCP From Scratch (dev.to)](https://dev.to/bhaveshghanchi/building-tcp-from-scratch-16-why-bother-when-tcp-exists-3aom)
+**Links:** [github.com/bhaveshGhanchi/leap](https://github.com/bhaveshGhanchi/leap) · [Building TCP From Scratch (dev.to)](https://dev.to/bhaveshghanchi/building-tcp-from-scratch-16-why-bother-when-tcp-exists-3aom)
 
 ## Resume / CV: bullet points
 

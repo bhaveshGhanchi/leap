@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# kernel_sweep.sh — run the LEAP-vs-TCP benchmark in kernel-loss mode.
+# kernel_sweep.sh - run the LEAP-vs-TCP benchmark in kernel-loss mode.
 #
 # Usage:  sudo ./scripts/kernel_sweep.sh
 #         sudo ./scripts/kernel_sweep.sh "0,0.01,0.05,0.1" 3 10m
@@ -15,7 +15,7 @@
 # Output: docs/benchmark_kernel.csv (one row per transfer).
 #
 # ============================================================
-# KNOWN LIMITATION — macOS 14+ (Sonoma / Sequoia):
+# KNOWN LIMITATION - macOS 14+ (Sonoma / Sequoia):
 # pf+dummynet rules attached to lo0 are loaded successfully but
 # the kernel's loopback fast-path bypasses the pf hook, so no
 # packets are actually shaped. Symptom: LEAP runs at full speed

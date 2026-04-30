@@ -21,7 +21,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *   - For each datagram from a client C, with probability p drop it;
  *     otherwise forward to (targetHost:targetPort), remembering C.
  *   - Reply packets from the server are returned to the last C that sent.
- *     (Single-client proxy — enough for benchmarking.)
+ *     (Single-client proxy - enough for benchmarking.)
  *   - Bidirectional drops: reverse-direction datagrams are also dropped at p.
  *
  * TCP mode:
@@ -29,7 +29,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *   - LOSS IS NOT APPLIED. Dropping bytes at an app-layer proxy leaves the
  *     TCP connection wedged (the kernel already ACK'd them), so app-layer
  *     loss cannot faithfully simulate network packet loss for TCP. This
- *     proxy is therefore a straight pass-through for TCP — the only
+ *     proxy is therefore a straight pass-through for TCP - the only
  *     scientifically valid way to get TCP-under-loss numbers is Mode C
  *     (OS-level pfctl) or a real lossy network.
  *

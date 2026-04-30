@@ -59,7 +59,7 @@ public class Packet {
         CRC32 crc = new CRC32();
         crc.update(payload);
         if ((int) crc.getValue() != storedChecksum) {
-            System.err.println("[WARN] CRC mismatch for seq=" + sequenceNumber + " — dropping corrupt packet");
+            System.err.println("[WARN] CRC mismatch for seq=" + sequenceNumber + " - dropping corrupt packet");
             return null;
         }
 

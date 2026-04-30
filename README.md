@@ -1,4 +1,15 @@
-# LEAP — Loss-aware End-to-end Acknowledged Protocol
+# LEAP: Loss-aware End-to-end Acknowledged Protocol
+
+[![Java](https://img.shields.io/badge/Java-11%2B-ea8d1f?logo=openjdk&logoColor=white)](https://openjdk.org/)
+[![Build](https://img.shields.io/badge/build-Maven-C71A36?logo=apachemaven&logoColor=white)](https://maven.apache.org/)
+[![Blog](https://img.shields.io/badge/blog-dev.to-0A0A0A?logo=devdotto&logoColor=white)](https://dev.to/bhaveshghanchi/building-tcp-from-scratch-16-why-bother-when-tcp-exists-3aom)
+
+## At a glance
+
+- **What:** Reliable file transfer over **UDP** with TCP-like behavior (sliding window, cumulative ACKs, fast retransmit, adaptive RTO, congestion control) and **end-to-end SHA-256** verification.
+- **Stack:** Java 11+, Maven; runnable as `./bin/leap` or `java -jar target/leap.jar` after `mvn package`.
+- **Proof:** Benchmark chart in [`docs/benchmark.png`](docs/benchmark.png); methodology and caveats below.
+- **For reviewers:** [Architecture overview](ARCHITECTURE.md) · [Portfolio blurbs (LinkedIn/CV)](docs/showcase.md) · [Publishing a GitHub Release](RELEASING.md)
 
 > **Companion blog series:** [Building TCP From Scratch (1/6) on dev.to](https://dev.to/bhaveshghanchi/building-tcp-from-scratch-16-why-bother-when-tcp-exists-3aom). A 6-part walkthrough of this code, with measurements and the bugs and dead ends included.
 
@@ -8,10 +19,8 @@ that measures its behavior under controlled packet loss alongside a TCP
 baseline.
 
 > **LEAP** stands for **L**oss-aware **E**nd-to-end **A**cknowledged
-> **P**rotocol — a single jump across a lossy network with retransmits,
+> **P**rotocol, a single jump across a lossy network with retransmits,
 > congestion control, and verified delivery.
-
----
 
 ## Status
 
@@ -21,7 +30,7 @@ baseline.
 | End-to-end SHA-256 integrity | done, verified on every transfer |
 | CLI (`leap send` / `leap receive` / `leap benchmark`) | done |
 | TCP baseline (`TcpServer` / `TcpClient`) | done |
-| Loss-simulation modes (`app`, `proxy`, `kernel`) | all three implemented; only `proxy` produces honest measurements on macOS — see "Kernel mode on macOS" below |
+| Loss-simulation modes (`app`, `proxy`, `kernel`) | all three implemented; only `proxy` produces honest measurements on macOS (see "Kernel mode on macOS" below) |
 | Benchmark orchestrator + CSV writer | done |
 | Plotting script (`plot_benchmark.py`) | done; chart in `docs/benchmark.png` |
 | Measured sweep | one run: 10 MiB × {0, 1%, 5%, 10%, 20%} × 3 trials, proxy mode |
@@ -32,11 +41,9 @@ The LEAP numbers in this README are from the proxy-mode sweep, recorded with
 `MAX_RETRIES = 5`. The default has since been raised to 10 to survive bursty
 loss; a re-measurement with the new ceiling is pending.
 
----
-
 ## What this project is
 
-LEAP is **TCP rebuilt in user space** — sequence numbers, cumulative ACKs,
+LEAP is **TCP rebuilt in user space**: sequence numbers, cumulative ACKs,
 sliding window, fast retransmit, slow start, congestion avoidance, adaptive
 RTO, all running over Java `DatagramSocket`s. The point isn't to be faster
 than TCP; it's to:
@@ -44,14 +51,12 @@ than TCP; it's to:
 1. Show what every box in the TCP state machine actually does, with real code.
 2. Measure its behavior honestly under packet loss, with real numbers and a
    documented methodology (including what the test environment does and
-   doesn't let us measure — see "Kernel mode on macOS" below).
+   doesn't let us measure (see "Kernel mode on macOS" below).
 
 The repository ships with a CLI (`leap send` / `leap receive`), a
 benchmark orchestrator that sweeps loss × file-size × trial, three different
 loss-simulation modes, and a plotting script that turns the CSV output into a
 chart.
-
----
 
 ## Quick start
 
@@ -77,8 +82,6 @@ Example end-to-end transfer:
 ./bin/leap send bench_data/test_1m.bin --to localhost:4040
 # → Throughput: 15.4 MB/s, Efficiency: 100.0%, integrity verified (sha256=...)
 ```
-
----
 
 ## Protocol design
 
@@ -115,13 +118,11 @@ collapse during early-window losses.
 Every transfer computes SHA-256 on both ends and the server logs:
 
 ```
-[OK]  127.0.0.1:54321 — integrity verified (sha256=58acd477...)
+[OK]  127.0.0.1:54321 - integrity verified (sha256=58acd477...)
 ```
 
 If the digests disagree, the server logs `[FAIL] integrity mismatch` and the
 file is left on disk for inspection.
-
----
 
 ## Repository layout
 
@@ -129,10 +130,14 @@ file is left on disk for inspection.
 src/main/java/com/leap/
   packet/        Packet wire format and (de)serialization
   file/          FileChunker (sender) and FileAssembler (receiver)
-  client/        Client.java — sender + congestion control
-  server/        Server.java — multi-session receiver
+  client/        Client.java (sender + congestion control)
+  server/        Server.java (multi-session receiver)
   benchmark/     TcpServer / TcpClient / Proxy / Benchmark harness
   utils/         Config constants and ChecksumUtils (SHA-256, CRC32)
+
+ARCHITECTURE.md         High-level map of modules and data flow
+RELEASING.md            Checklist + template notes for GitHub Releases
+docs/showcase.md        One-liners for GitHub / LinkedIn / resume
 
 bin/leap                Shell launcher for the shaded jar
 scripts/
@@ -143,8 +148,6 @@ scripts/
 plot_benchmark.py       Render docs/benchmark.png from the CSV
 plot_leap.py            Render per-transfer cwnd / ssthresh charts from leap_log.csv
 ```
-
----
 
 ## Benchmarking
 
@@ -168,7 +171,7 @@ python3 plot_benchmark.py
 
 Honest simulation of packet loss is harder than it looks, so the harness
 supports three independent modes and the README is upfront about what each
-mode actually models — and which one was actually used to produce the
+mode actually models, and which one was actually used to produce the
 numbers below.
 
 | Mode | How loss is applied | Valid for | Requires |
@@ -178,15 +181,15 @@ numbers below.
 | `kernel` | OS-level packet drop (`pfctl`+`dummynet` on macOS, `tc netem` on Linux) | LEAP **and** TCP | `sudo` |
 
 **Why `proxy` doesn't measure TCP under loss.** An app-layer proxy can't
-faithfully drop TCP bytes mid-stream — the kernel has already ACK'd them by
+faithfully drop TCP bytes mid-stream; the kernel has already ACK'd them by
 the time userspace sees them, so dropping leaves the connection wedged. The
 proxy mode is therefore LEAP-only by design; running TCP through it just
 measures TCP at 0% loss with one extra hop.
 
-### Measured results — LEAP, 10 MiB, proxy mode, 3 trials per cell
+### Measured results (LEAP, 10 MiB, proxy mode, 3 trials per cell)
 
 Run on macOS, loopback, `MAX_RETRIES = 5` (the default at the time of
-measurement; current default is 10 — see Status section above):
+measurement; current default is 10 (see Status section above):
 
 | Loss rate | Throughput | Retransmits | Efficiency | Integrity |
 |---:|---:|---:|---:|---:|
@@ -206,10 +209,10 @@ Raw CSV: `docs/benchmark_results.csv`. Chart:
 ![Benchmark](docs/benchmark.png)
 
 There is **no head-to-head TCP-vs-LEAP throughput table in this README** by
-design — see the next section for why, and how to produce one honestly on
+design. See the next section for why, and how to produce one honestly on
 Linux.
 
-### Kernel mode on macOS — what we tried and why it didn't ship
+### Kernel mode on macOS (what we tried and why it didn't ship)
 
 The orchestrator and helper scripts for kernel-mode loss are committed and
 runnable:
@@ -224,13 +227,13 @@ A full sweep was attempted on macOS 14 (10 MiB × {0, 1%, 5%, 10%} × 3 trials
 × LEAP+TCP). Every run reported the dummynet pipe configured correctly
 (`dnctl pipe show` → `plr 0.050000` etc.) and pf enabled, but the resulting
 LEAP numbers showed **0 retransmits and 100% efficiency at every loss rate**
-— full-speed transfers, no drops actually occurring. `sudo pfctl -si`
+(full-speed transfers, no drops actually occurring). `sudo pfctl -si`
 reported `Counters: match 0` while traffic was flowing.
 
 This is a known macOS-Sonoma/Sequoia behavior: the kernel's loopback
 fast-path bypasses the pf hook on `lo0`, so dummynet rules attached there
 load successfully but match nothing. The failure-mode CSV is preserved at
-`docs/benchmark_kernel_macos14_no_drops.csv` as evidence — every LEAP row
+`docs/benchmark_kernel_macos14_no_drops.csv` as evidence: every LEAP row
 in that file has `retransmits=0,efficiency_pct=100.00`, identical to the
 0% row, confirming no real drops occurred.
 
@@ -247,8 +250,6 @@ sudo tc qdisc del dev lo root
 That sweep is on the roadmap and will be filled in once a Linux box is
 available. The macOS scripts are kept in-tree because they're correct on
 older macOS and are the right starting point for a Linux port.
-
----
 
 ## Configuration knobs
 
@@ -269,8 +270,6 @@ HASH_LENGTH       = 32      // SHA-256 digest size
 CLI flags (`--window`, `--chunk`, `--port`, `--loss`, `--debug`) override the
 defaults at runtime.
 
----
-
 ## Limitations and what's intentionally out of scope
 
 - **20% loss is the wall.** With the default retry ceiling, LEAP cannot push
@@ -285,8 +284,6 @@ defaults at runtime.
   `tc netem` re-run is on the roadmap. The `proxy` mode TCP numbers in the
   raw CSV (`docs/benchmark_results.csv`) are passthroughs and should not be
   read as a comparison.
-
----
 
 ## Roadmap
 
@@ -304,8 +301,6 @@ defaults at runtime.
 - [ ] Resume support (persist last cumulative ACK on both sides)
 - [ ] TCP Cubic / BBR-style congestion control behind a `--cc` flag
 - [ ] Encryption (libsodium / Noise) for non-loopback use
-
----
 
 ## Building and running from the IDE
 

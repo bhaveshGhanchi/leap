@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# leap — thin launcher for the LEAP jar.
+# leap - thin launcher for the LEAP jar.
 # Resolves the jar relative to this script so it works from any cwd.
 
 set -euo pipefail

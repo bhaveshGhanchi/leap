@@ -117,7 +117,7 @@ public class Server {
 
         // Dedicated send socket: avoids blocking the shared receive socket,
         // since DatagramSocket.send() and .receive() are both synchronized on
-        // the same object — sharing them would deadlock ACK delivery.
+        // the same object - sharing them would deadlock ACK delivery.
         private DatagramSocket sendSocket;
 
         ClientSession(InetAddress addr, int port,
@@ -153,13 +153,13 @@ public class Server {
                 while (true) {
                     byte[] data = queue.poll(30, TimeUnit.SECONDS);
                     if (data == null) {
-                        System.out.println("[TIMEOUT] " + tag + " — no packets for 30s, closing session");
+                        System.out.println("[TIMEOUT] " + tag + " - no packets for 30s, closing session");
                         break;
                     }
 
                     Packet parsed = Packet.fromBytes(data, data.length);
                     if (parsed == null) {
-                        System.err.println("[WARN] " + tag + " — corrupt packet, skipping");
+                        System.err.println("[WARN] " + tag + " - corrupt packet, skipping");
                         continue;
                     }
 
@@ -169,10 +169,10 @@ public class Server {
                         if (parsed.getPayloadlength() == Config.HASH_LENGTH) {
                             expectedHash = parsed.getPayload();
                         } else if (parsed.getPayloadlength() > 0) {
-                            System.err.println("[WARN] " + tag + " — unexpected FIN checksum length="
+                            System.err.println("[WARN] " + tag + " - unexpected FIN checksum length="
                                     + parsed.getPayloadlength());
                         }
-                        System.out.println("[FIN] " + tag + " — sending final ACK=" + expectedSeq);
+                        System.out.println("[FIN] " + tag + " - sending final ACK=" + expectedSeq);
                         sendAck(expectedSeq);
                         break;
                     }
@@ -217,15 +217,15 @@ public class Server {
                 if (expectedHash != null) {
                     byte[] actualHash = ChecksumUtils.sha256Bytes(outputFile);
                     if (Arrays.equals(expectedHash, actualHash)) {
-                        System.out.println("[OK]  " + tag + " — integrity verified (sha256="
+                        System.out.println("[OK]  " + tag + " - integrity verified (sha256="
                                 + ChecksumUtils.toHex(actualHash) + ")");
                     } else {
-                        System.err.println("[FAIL] " + tag + " — checksum mismatch");
+                        System.err.println("[FAIL] " + tag + " - checksum mismatch");
                         System.err.println("       expected=" + ChecksumUtils.toHex(expectedHash));
                         System.err.println("       actual  =" + ChecksumUtils.toHex(actualHash));
                     }
                 } else {
-                    System.err.println("[WARN] " + tag + " — FIN did not include SHA-256 checksum");
+                    System.err.println("[WARN] " + tag + " - FIN did not include SHA-256 checksum");
                 }
 
                 long elapsed = System.currentTimeMillis() - startTime;

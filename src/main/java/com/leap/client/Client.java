@@ -180,7 +180,7 @@ public class Client {
             while (!fileFinished || base < nextSeq) {
 
                 if (retryCount >= Config.MAX_RETRIES) {
-                    System.err.println("[ABORT] Max retries (" + Config.MAX_RETRIES + ") reached at base=" + base + " — giving up.");
+                    System.err.println("[ABORT] Max retries (" + Config.MAX_RETRIES + ") reached at base=" + base + " - giving up.");
                     break;
                 }
 
@@ -215,14 +215,14 @@ public class Client {
                     s.receive(ackPacket);
                     Packet ack = Packet.fromBytes(receiveBuffer, ackPacket.getLength());
                     if (ack == null) {
-                        dbg("Received corrupt/null packet — skipping");
+                        dbg("Received corrupt/null packet - skipping");
                         continue;
                     }
                     if (ack.getType() == Config.TYPE_ACK) {
                         int ackSeq = ack.getSequenceNumber();
 
                         if (ackSeq < base) {
-                            dbg("Stale ACK ackSeq=" + ackSeq + " < base=" + base + " — ignored");
+                            dbg("Stale ACK ackSeq=" + ackSeq + " < base=" + base + " - ignored");
                             continue;
                         }
 
@@ -371,7 +371,7 @@ public class Client {
                         retransmitted.add(base);
                         dbg("RETX seq=" + base + " (timeout recovery)");
                     } else {
-                        dbg("TIMEOUT but no packet in window for base=" + base + " — nothing to retransmit");
+                        dbg("TIMEOUT but no packet in window for base=" + base + " - nothing to retransmit");
                     }
 
                     logWriter.write((System.currentTimeMillis() - start) + "," + cwnd + "," + ssthresh + "," + base

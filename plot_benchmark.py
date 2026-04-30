@@ -159,7 +159,7 @@ def plot(
 
     ax1.set_xlabel("Packet loss (%)")
     ax1.set_ylabel("Throughput (MB/s)")
-    ax1.set_title(f"Throughput vs packet loss — {human_size(file_size)} transfer")
+    ax1.set_title(f"Throughput vs packet loss - {human_size(file_size)} transfer")
     ax1.set_yscale("log")
     ax1.yaxis.set_major_formatter(mticker.FuncFormatter(lambda v, _: f"{v:g}"))
     ax1.legend(loc="lower left", frameon=False)

@@ -22,7 +22,7 @@ import com.leap.utils.ChecksumUtils;
  * the orchestrator simple.
  *
  * Loss mode "app": drops incoming bytes at the application layer at the
- * configured probability per read. NOT a realistic TCP loss model — the
+ * configured probability per read. NOT a realistic TCP loss model - the
  * kernel ACKs those bytes anyway, so congestion control never reacts.
  * Included only for the methodology-contrast section of the writeup.
  */

@@ -34,7 +34,7 @@ public class App {
     }
 
     private static void printUsage() {
-        System.out.println("LEAP — Loss-aware End-to-end Acknowledged Protocol");
+        System.out.println("LEAP: Loss-aware End-to-end Acknowledged Protocol");
         System.out.println("Reliable file transfer over UDP.");
         System.out.println();
         System.out.println("Usage:");

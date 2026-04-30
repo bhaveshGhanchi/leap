@@ -20,12 +20,12 @@ import java.util.regex.Pattern;
  * and appends one CSV row per transfer to docs/benchmark_results.csv.
  *
  * Loss modes:
- *   app    — loss applied at the application layer (LEAP server's built-in
+ *   app    - loss applied at the application layer (LEAP server's built-in
  *            --loss and TcpServer's --loss). Included as a methodology
  *            contrast; TCP numbers here are NOT a fair protocol comparison.
- *   proxy  — Proxy.java sits in between. Drops UDP datagrams and TCP chunks
+ *   proxy  - Proxy.java sits in between. Drops UDP datagrams and TCP chunks
  *            at the configured probability. No root required.
- *   kernel — Expects the operator to have run scripts/loss_up.sh beforehand.
+ *   kernel - Expects the operator to have run scripts/loss_up.sh beforehand.
  *            This harness doesn't touch pfctl; it just transfers and measures.
  *
  * Output columns:
@@ -76,7 +76,7 @@ public class Benchmark {
             }
 
             if (lossMode.equals("kernel")) {
-                System.out.println("[bench] kernel mode — expecting pfctl already active.");
+                System.out.println("[bench] kernel mode - expecting pfctl already active.");
                 System.out.println("        For each loss rate, this harness will PAUSE and ask you");
                 System.out.println("        to run scripts/loss_up.sh with that rate, then press Enter.");
             }
@@ -95,7 +95,7 @@ public class Benchmark {
                 } else if (lossMode.equals("kernel") && loss == 0) {
                     System.out.println();
                     System.out.println("===================================================");
-                    System.out.println("Loss rate 0 — ensure pfctl is DISABLED.");
+                    System.out.println("Loss rate 0 - ensure pfctl is DISABLED.");
                     System.out.println("Run: sudo ./scripts/loss_down.sh");
                     System.out.println("Then press ENTER here to continue.");
                     System.out.println("===================================================");

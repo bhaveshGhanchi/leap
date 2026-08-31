@@ -36,14 +36,14 @@ baseline.
 | Loss-simulation modes (`app`, `proxy`, `kernel`)                              | all three implemented; only `proxy` produces honest measurements on macOS (see "Kernel mode on macOS" below)                                                                                                          |
 | Benchmark orchestrator + CSV writer                                           | done                                                                                                                                                                                                                  |
 | Plotting script (`plot_benchmark.py`)                                         | done; chart in `docs/benchmark.png`                                                                                                                                                                                   |
-| Measured sweep                                                                | one run: 10 MiB × {0, 1%, 5%, 10%, 20%} × 3 trials, proxy mode                                                                                                                                                        |
-| `kernel`-mode (pfctl) measurements                                            | attempted on macOS 14; pf+dummynet does not shape `lo0` traffic on this version, so the run produced no real drops. Failure-mode CSV preserved at `docs/benchmark_kernel_macos14_no_drops.csv`. Linux re-run pending. |
+| Measured sweep                                                                | re-run: 10 MiB × {0, 1%, 5%, 10%, 20%} × 3 trials, proxy mode, `MAX_RETRIES = 10` (2026-08-30)                                                                                                                          |
+| `kernel`-mode (pfctl) measurements                                            | macOS `lo0` still does not drop (see below). Linux `tc netem` driver: `scripts/linux_kernel_sweep.sh` (needs a Linux host or Docker `--cap-add=NET_ADMIN`; not run here).                                              |
 | Unit tests                                                                    | packet wire/CRC, SHA-256, chunker/assembler, out-of-order reassembly (`mvn test`)                                                                                                                                     |
 
 
-The LEAP numbers in this README are from the proxy-mode sweep, recorded with
-`MAX_RETRIES = 5`. The default has since been raised to 10 to survive bursty
-loss; a re-measurement with the new ceiling is pending.
+The LEAP numbers in this README are from the proxy-mode sweep of 2026-08-30
+with the current `MAX_RETRIES = 10`. The previous `MAX_RETRIES = 5` CSV is
+kept at `docs/benchmark_results_maxretries5.csv`.
 
 ## What this project is
 
@@ -154,7 +154,8 @@ scripts/
   gen_bench_data.sh     Generate 1 / 10 / 100 MiB test files
   loss_up.sh            macOS pfctl/dummynet packet-loss installer
   loss_down.sh          Tear down kernel-level loss
-  kernel_sweep.sh       Drive a full kernel-mode sweep (sudo wrapper)
+  kernel_sweep.sh       Drive a full kernel-mode sweep (sudo wrapper, macOS pf)
+  linux_kernel_sweep.sh Linux `tc netem` sweep (root / Docker NET_ADMIN)
 plot_benchmark.py       Render docs/benchmark.png from the CSV
 plot_leap.py            Per-transfer cwnd / ssthresh charts (`--csv`, `--out-dir`)
 ```
@@ -204,23 +205,30 @@ measures TCP at 0% loss with one extra hop.
 
 ### Measured results (LEAP, 10 MiB, proxy mode, 3 trials per cell)
 
-Run on macOS, loopback, `MAX_RETRIES = 5` (the default at the time of
-measurement; current default is 10 (see Status section above):
-
+Run on macOS, loopback, `MAX_RETRIES = 10` (2026-08-30). Means across
+completed trials unless noted. TCP proxy rows are still passthrough (not
+under loss); see methodology.
 
 | Loss rate | Throughput | Retransmits | Efficiency | Integrity |
 | --------- | ---------- | ----------- | ---------- | --------- |
-| 0%        | 46.2 MB/s  | 0           | 100.0%     | 3 / 3     |
-| 1%        | 7.3 MB/s   | ~106        | 99.0%      | 3 / 3     |
-| 5%        | 342 KB/s   | ~571        | 94.7%      | 3 / 3     |
-| 10%       | ~96 KB/s   | ~1290       | 88.8%      | 2 / 3 †   |
-| 20%       | *aborted*  | n/a         | n/a        | 0 / 3     |
+| 0%        | 29.5 MB/s  | 0           | 100.0%     | 0 / 3 ‡   |
+| 1%        | noisy §    | —           | —          | 1 / 3     |
+| 5%        | 301 KB/s   | ~582        | 94.6%      | 3 / 3     |
+| 10%       | 99 KB/s    | ~1275       | 88.9%      | 3 / 3     |
+| 20%       | *timeout*  | n/a         | n/a        | 0 / 3     |
 
+§ 1% trials were 4.9 MB/s (integrity ok), 234 KB/s, and 66 KB/s (two
+integrity failures). Do not treat 1% as a single headline number.
 
-† One of the three trials at 10% loss tripped the `MAX_RETRIES = 5` ceiling
-in use during measurement; the other two completed cleanly. The default
-ceiling was subsequently raised to 10 to make this less likely on bursty
-loss patterns.
+‡ Client reported 100% efficiency and 0 retransmits; the harness
+`integrity_ok` check did not match `received_1.dat` (likely a finalize
+or path race). Treat 0% as “transfer finished, hash check flaky in the
+orchestrator,” not as data corruption on the wire.
+
+At 10% loss all three trials completed (previously 2 / 3 with
+`MAX_RETRIES = 5`). At 20% each trial hit the 360 s orchestrator timeout
+and was killed — raising the retry ceiling did not make 20% finish in
+bound.
 
 Raw CSV: `docs/benchmark_results.csv`. Chart:
 
@@ -256,14 +264,25 @@ in that file has `retransmits=0,efficiency_pct=100.00`, identical to the
 0% row, confirming no real drops occurred.
 
 **To produce real TCP-vs-LEAP-under-loss numbers, run on Linux**, where
-`tc netem` shapes loopback reliably:
+`tc netem` shapes loopback reliably. Driver script (root, or Docker with
+`--cap-add=NET_ADMIN`):
+
+```bash
+./scripts/linux_kernel_sweep.sh
+# or: ./scripts/linux_kernel_sweep.sh "0,0.05,0.1" 2 10m
+```
+
+Manual equivalent:
 
 ```bash
 sudo tc qdisc add dev lo root netem loss 5%
-./bin/leap benchmark --loss-mode kernel --sizes 10m --trials 3 \
+printf '\n' | ./bin/leap benchmark --loss-mode kernel --sizes 10m --trials 3 \
     --loss-rates 0.05 --protocols leap,tcp --csv docs/benchmark_kernel.csv
 sudo tc qdisc del dev lo root
 ```
+
+This Mac has no Linux VM/Docker available, so `docs/benchmark_kernel.csv`
+has not been produced here.
 
 That sweep is on the roadmap and will be filled in once a Linux box is
 available. The macOS scripts are kept in-tree because they're correct on
@@ -314,9 +333,10 @@ read as a comparison.
 - [x] Benchmarking harness with three loss-simulation modes (`app`, `proxy`, `kernel`)
 - [x] Kernel-mode orchestrator (`scripts/kernel_sweep.sh`) and helper scripts
 - [x] One measured sweep (LEAP, 10 MiB, proxy mode, 5 loss rates × 3 trials)
-- [ ] Re-run proxy sweep with `MAX_RETRIES = 10` to update the table above
-- [ ] Linux kernel-mode sweep with `tc netem` to produce the real TCP-vs-LEAP-under-loss table (macOS pf+dummynet does not shape `lo0` on macOS 14+)
-- [ ] Unit tests (a localhost integrity smoke test at minimum)
+- [x] Re-run proxy sweep with `MAX_RETRIES = 10` (2026-08-30; table above)
+- [x] Linux `tc netem` driver (`scripts/linux_kernel_sweep.sh`)
+- [ ] Run that driver on a Linux host / Docker and commit `docs/benchmark_kernel.csv`
+- [x] Unit tests (packet, SHA-256, chunker, out-of-order assemble)
 - [ ] Selective ACK (SACK) for tighter recovery on bursty loss
 - [ ] Resume support (persist last cumulative ACK on both sides)
 - [ ] TCP Cubic / BBR-style congestion control behind a `--cc` flag

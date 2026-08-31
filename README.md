@@ -1,14 +1,14 @@
 # LEAP: Loss-aware End-to-end Acknowledged Protocol
 
-[![Java](https://img.shields.io/badge/Java-11%2B-ea8d1f?logo=openjdk&logoColor=white)](https://openjdk.org/)
-[![Build](https://img.shields.io/badge/build-Maven-C71A36?logo=apachemaven&logoColor=white)](https://maven.apache.org/)
-[![Blog](https://img.shields.io/badge/blog-dev.to-0A0A0A?logo=devdotto&logoColor=white)](https://dev.to/bhaveshghanchi/building-tcp-from-scratch-16-why-bother-when-tcp-exists-3aom)
+[Java](https://openjdk.org/)
+[Build](https://maven.apache.org/)
+[Blog](https://dev.to/bhaveshghanchi/building-tcp-from-scratch-16-why-bother-when-tcp-exists-3aom)
 
 ## At a glance
 
 - **What:** Reliable file transfer over **UDP** with TCP-like behavior (sliding window, cumulative ACKs, fast retransmit, adaptive RTO, congestion control) and **end-to-end SHA-256** verification.
 - **Stack:** Java 11+, Maven; runnable as `./bin/leap` or `java -jar target/leap.jar` after `mvn package`.
-- **Proof:** Benchmark chart in [`docs/benchmark.png`](docs/benchmark.png); methodology and caveats below.
+- **Proof:** Benchmark chart in `[docs/benchmark.png](docs/benchmark.png)`; methodology and caveats below.
 - **For reviewers:** [Architecture overview](ARCHITECTURE.md) · [Portfolio blurbs (LinkedIn/CV)](docs/showcase.md) · [Publishing a GitHub Release](RELEASING.md)
 
 > **Companion blog series:** [Building TCP From Scratch (1/6) on dev.to](https://dev.to/bhaveshghanchi/building-tcp-from-scratch-16-why-bother-when-tcp-exists-3aom). A 6-part walkthrough of this code, with measurements and the bugs and dead ends included.
@@ -22,20 +22,24 @@ baseline.
 > **P**rotocol, a single jump across a lossy network with retransmits,
 > congestion control, and verified delivery.
 
+
+
 ## Status
 
-| Component | State |
-|---|---|
-| Reliable transport (sliding window, fast retransmit, RTO, congestion control) | done, tested at 0%/5%/10% loss on localhost |
-| End-to-end SHA-256 integrity | done, verified on every transfer |
-| CLI (`leap send` / `leap receive` / `leap benchmark`) | done |
-| TCP baseline (`TcpServer` / `TcpClient`) | done |
-| Loss-simulation modes (`app`, `proxy`, `kernel`) | all three implemented; only `proxy` produces honest measurements on macOS (see "Kernel mode on macOS" below) |
-| Benchmark orchestrator + CSV writer | done |
-| Plotting script (`plot_benchmark.py`) | done; chart in `docs/benchmark.png` |
-| Measured sweep | one run: 10 MiB × {0, 1%, 5%, 10%, 20%} × 3 trials, proxy mode |
-| `kernel`-mode (pfctl) measurements | attempted on macOS 14; pf+dummynet does not shape `lo0` traffic on this version, so the run produced no real drops. Failure-mode CSV preserved at `docs/benchmark_kernel_macos14_no_drops.csv`. Linux re-run pending. |
-| Unit tests | not yet written |
+
+| Component                                                                     | State                                                                                                                                                                                                                 |
+| ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Reliable transport (sliding window, fast retransmit, RTO, congestion control) | done, tested at 0%/5%/10% loss on localhost                                                                                                                                                                           |
+| End-to-end SHA-256 integrity                                                  | done, verified on every transfer                                                                                                                                                                                      |
+| CLI (`leap send` / `leap receive` / `leap benchmark`)                         | done                                                                                                                                                                                                                  |
+| TCP baseline (`TcpServer` / `TcpClient`)                                      | done                                                                                                                                                                                                                  |
+| Loss-simulation modes (`app`, `proxy`, `kernel`)                              | all three implemented; only `proxy` produces honest measurements on macOS (see "Kernel mode on macOS" below)                                                                                                          |
+| Benchmark orchestrator + CSV writer                                           | done                                                                                                                                                                                                                  |
+| Plotting script (`plot_benchmark.py`)                                         | done; chart in `docs/benchmark.png`                                                                                                                                                                                   |
+| Measured sweep                                                                | one run: 10 MiB × {0, 1%, 5%, 10%, 20%} × 3 trials, proxy mode                                                                                                                                                        |
+| `kernel`-mode (pfctl) measurements                                            | attempted on macOS 14; pf+dummynet does not shape `lo0` traffic on this version, so the run produced no real drops. Failure-mode CSV preserved at `docs/benchmark_kernel_macos14_no_drops.csv`. Linux re-run pending. |
+| Unit tests                                                                    | packet wire/CRC, SHA-256, chunker/assembler, out-of-order reassembly (`mvn test`)                                                                                                                                     |
+
 
 The LEAP numbers in this README are from the proxy-mode sweep, recorded with
 `MAX_RETRIES = 5`. The default has since been raised to 10 to survive bursty
@@ -50,7 +54,7 @@ than TCP; it's to:
 
 1. Show what every box in the TCP state machine actually does, with real code.
 2. Measure its behavior honestly under packet loss, with real numbers and a
-   documented methodology (including what the test environment does and
+  documented methodology (including what the test environment does and
    doesn't let us measure (see "Kernel mode on macOS" below).
 
 The repository ships with a CLI (`leap send` / `leap receive`), a
@@ -83,7 +87,11 @@ Example end-to-end transfer:
 # → Throughput: 15.4 MB/s, Efficiency: 100.0%, integrity verified (sha256=...)
 ```
 
+
+
 ## Protocol design
+
+
 
 ### Packet format
 
@@ -101,11 +109,13 @@ file before acknowledging. Per-packet CRC32 catches in-flight corruption.
 - Sliding window with configurable size (`--window`, default 20).
 - Fast retransmit on three duplicate ACKs.
 - Adaptive RTO: estimated_RTT + 4 · dev_RTT, capped at 2 s, exponential
-  backoff on timeout.
+backoff on timeout.
 - Selective receiver buffer for out-of-order delivery, in-order flush to disk.
 - `MAX_RETRIES = 10` consecutive timeouts on the same window base before the
-  client aborts. (TCP has no equivalent ceiling; this is intentional, so a
-  truly broken path can't hang forever.)
+client aborts. (TCP has no equivalent ceiling; this is intentional, so a
+truly broken path can't hang forever.)
+
+
 
 ### Congestion control
 
@@ -149,6 +159,8 @@ plot_benchmark.py       Render docs/benchmark.png from the CSV
 plot_leap.py            Per-transfer cwnd / ssthresh charts (`--csv`, `--out-dir`)
 ```
 
+
+
 ## Benchmarking
 
 The benchmark sweeps `(loss_rate × file_size × trial)`, runs each cell with
@@ -167,6 +179,8 @@ python3 plot_benchmark.py
 # → writes docs/benchmark.png
 ```
 
+
+
 ### Loss-simulation methodology
 
 Honest simulation of packet loss is harder than it looks, so the harness
@@ -174,13 +188,15 @@ supports three independent modes and the README is upfront about what each
 mode actually models, and which one was actually used to produce the
 numbers below.
 
-| Mode | How loss is applied | Valid for | Requires |
-|---|---|---|---|
-| `app` | Server drops bytes/datagrams at the application layer | LEAP only | nothing |
-| `proxy` | Userspace UDP forwarder drops datagrams at rate `p` | LEAP only (see below) | nothing |
-| `kernel` | OS-level packet drop (`pfctl`+`dummynet` on macOS, `tc netem` on Linux) | LEAP **and** TCP | `sudo` |
 
-**Why `proxy` doesn't measure TCP under loss.** An app-layer proxy can't
+| Mode     | How loss is applied                                                     | Valid for             | Requires |
+| -------- | ----------------------------------------------------------------------- | --------------------- | -------- |
+| `app`    | Server drops bytes/datagrams at the application layer                   | LEAP only             | nothing  |
+| `proxy`  | Userspace UDP forwarder drops datagrams at rate `p`                     | LEAP only (see below) | nothing  |
+| `kernel` | OS-level packet drop (`pfctl`+`dummynet` on macOS, `tc netem` on Linux) | LEAP **and** TCP      | `sudo`   |
+
+
+**Why** `proxy` **doesn't measure TCP under loss.** An app-layer proxy can't
 faithfully drop TCP bytes mid-stream; the kernel has already ACK'd them by
 the time userspace sees them, so dropping leaves the connection wedged. The
 proxy mode is therefore LEAP-only by design; running TCP through it just
@@ -191,13 +207,15 @@ measures TCP at 0% loss with one extra hop.
 Run on macOS, loopback, `MAX_RETRIES = 5` (the default at the time of
 measurement; current default is 10 (see Status section above):
 
+
 | Loss rate | Throughput | Retransmits | Efficiency | Integrity |
-|---:|---:|---:|---:|---:|
-| 0%   | 46.2 MB/s | 0    | 100.0% | 3 / 3 |
-| 1%   |  7.3 MB/s | ~106 |  99.0% | 3 / 3 |
-| 5%   | 342 KB/s  | ~571 |  94.7% | 3 / 3 |
-| 10%  |  ~96 KB/s | ~1290|  88.8% | 2 / 3 † |
-| 20%  | *aborted* | n/a  |   n/a  | 0 / 3 |
+| --------- | ---------- | ----------- | ---------- | --------- |
+| 0%        | 46.2 MB/s  | 0           | 100.0%     | 3 / 3     |
+| 1%        | 7.3 MB/s   | ~106        | 99.0%      | 3 / 3     |
+| 5%        | 342 KB/s   | ~571        | 94.7%      | 3 / 3     |
+| 10%       | ~96 KB/s   | ~1290       | 88.8%      | 2 / 3 †   |
+| 20%       | *aborted*  | n/a         | n/a        | 0 / 3     |
+
 
 † One of the three trials at 10% loss tripped the `MAX_RETRIES = 5` ceiling
 in use during measurement; the other two completed cleanly. The default
@@ -206,7 +224,7 @@ loss patterns.
 
 Raw CSV: `docs/benchmark_results.csv`. Chart:
 
-![Benchmark](docs/benchmark.png)
+Benchmark
 
 There is **no head-to-head TCP-vs-LEAP throughput table in this README** by
 design. See the next section for why, and how to produce one honestly on
@@ -273,17 +291,19 @@ defaults at runtime.
 ## Limitations and what's intentionally out of scope
 
 - **20% loss is the wall.** With the default retry ceiling, LEAP cannot push
-  through 20%+ packet loss; transfers abort by design rather than hang. Raise
-  `MAX_RETRIES` if you need to survive worse paths.
+through 20%+ packet loss; transfers abort by design rather than hang. Raise
+`MAX_RETRIES` if you need to survive worse paths.
 - **Single sender → single receiver, single file per session.** No multiplex,
-  no resume, no SACK.
+no resume, no SACK.
 - **No encryption, no auth, no NAT traversal.** Localhost / LAN tested only.
 - **No measured TCP-vs-LEAP head-to-head under loss in this README.** Honest
-  comparison requires kernel-level packet drops. macOS 14+ doesn't shape
-  `lo0` traffic via pf+dummynet (see "Kernel mode on macOS"), and a Linux
-  `tc netem` re-run is on the roadmap. The `proxy` mode TCP numbers in the
-  raw CSV (`docs/benchmark_results.csv`) are passthroughs and should not be
-  read as a comparison.
+comparison requires kernel-level packet drops. macOS 14+ doesn't shape
+`lo0` traffic via pf+dummynet (see "Kernel mode on macOS"), and a Linux
+`tc netem` re-run is on the roadmap. The `proxy` mode TCP numbers in the
+raw CSV (`docs/benchmark_results.csv`) are passthroughs and should not be
+read as a comparison.
+
+
 
 ## Roadmap
 
@@ -301,6 +321,8 @@ defaults at runtime.
 - [ ] Resume support (persist last cumulative ACK on both sides)
 - [ ] TCP Cubic / BBR-style congestion control behind a `--cc` flag
 - [ ] Encryption (libsodium / Noise) for non-loopback use
+
+
 
 ## Building and running from the IDE
 

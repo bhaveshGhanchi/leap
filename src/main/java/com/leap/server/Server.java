@@ -7,9 +7,7 @@ import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -18,6 +16,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.leap.file.FileAssembler;
+import com.leap.file.InOrderAssembler;
 import com.leap.packet.Packet;
 import com.leap.utils.ChecksumUtils;
 import com.leap.utils.Config;
@@ -141,11 +140,8 @@ public class Server {
 
             try {
                 sendSocket = new DatagramSocket();
-                FileAssembler assembler = new FileAssembler(outputFile);
+                InOrderAssembler assembler = new InOrderAssembler(new FileAssembler(outputFile));
 
-                Map<Integer, byte[]> recvBuffer = new HashMap<>();
-                Set<Integer> received = new HashSet<>();
-                int expectedSeq = 0;
                 byte[] expectedHash = null;
 
                 long startTime = System.currentTimeMillis();
@@ -174,8 +170,8 @@ public class Server {
                             System.err.println("[WARN] " + tag + " - unexpected FIN checksum length="
                                     + parsed.getPayloadlength());
                         }
-                        System.out.println("[FIN] " + tag + " - sending final ACK=" + expectedSeq);
-                        sendAck(expectedSeq);
+                        System.out.println("[FIN] " + tag + " - sending final ACK=" + assembler.expectedSeq());
+                        sendAck(assembler.expectedSeq());
                         break;
                     }
 
@@ -188,21 +184,9 @@ public class Server {
                         continue;
                     }
 
-                    if (!received.contains(seq)) {
-                        recvBuffer.put(seq, parsed.getPayload());
-                        received.add(seq);
-                    } else {
-                        System.out.println("  [DUP]  " + tag + " seq=" + seq + " already buffered, ignoring");
-                    }
-
-                    int prevExpected = expectedSeq;
-                    while (received.contains(expectedSeq)) {
-                        assembler.writeChunk(recvBuffer.get(expectedSeq));
-                        recvBuffer.remove(expectedSeq);
-                        received.remove(expectedSeq);
-                        expectedSeq++;
-                    }
-
+                    int prevExpected = assembler.expectedSeq();
+                    assembler.offer(seq, parsed.getPayload());
+                    int expectedSeq = assembler.expectedSeq();
                     if (Config.DEBUG) {
                         if (expectedSeq > prevExpected) {
                             System.out.println("  [ACK] " + tag
@@ -233,7 +217,7 @@ public class Server {
                 long elapsed = System.currentTimeMillis() - startTime;
                 System.out.println("\n===== Stats for " + tag + " =====");
                 System.out.println("Transfer time       : " + elapsed + " ms");
-                System.out.println("Chunks delivered    : " + expectedSeq);
+                System.out.println("Chunks delivered    : " + assembler.expectedSeq());
                 System.out.println("Total packets recv  : " + totalPacketsReceived);
                 System.out.println("Packets dropped     : " + droppedPackets);
                 System.out.println("Output file         : " + outputFile);

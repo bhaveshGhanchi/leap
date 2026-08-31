@@ -26,7 +26,9 @@ public class Server {
 
     private static DatagramSocket sharedSocket;
     private static final Map<SocketAddress, ClientSession> sessions = new ConcurrentHashMap<>();
-    private static final ExecutorService executor = Executors.newCachedThreadPool();
+    // Benchmark/receive tool: a handful of concurrent sessions, not a public
+    // service. Cap the pool so a misbehaving client cannot grow threads without bound.
+    private static final ExecutorService executor = Executors.newFixedThreadPool(8);
     private static final AtomicInteger sessionCounter = new AtomicInteger(0);
 
     private static String outputDir;

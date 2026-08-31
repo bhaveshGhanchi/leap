@@ -146,7 +146,7 @@ scripts/
   loss_down.sh          Tear down kernel-level loss
   kernel_sweep.sh       Drive a full kernel-mode sweep (sudo wrapper)
 plot_benchmark.py       Render docs/benchmark.png from the CSV
-plot_leap.py            Render per-transfer cwnd / ssthresh charts from leap_log.csv
+plot_leap.py            Per-transfer cwnd / ssthresh charts (`--csv`, `--out-dir`)
 ```
 
 ## Benchmarking

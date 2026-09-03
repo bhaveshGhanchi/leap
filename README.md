@@ -39,6 +39,7 @@ baseline.
 | Measured sweep                                                                | re-run: 10 MiB × {0, 1%, 5%, 10%, 20%} × 3 trials, proxy mode, `MAX_RETRIES = 10` (2026-08-30)                                                                                                                          |
 | `kernel`-mode (pfctl) measurements                                            | macOS `lo0` still does not drop (see below). Linux `tc netem` driver: `scripts/linux_kernel_sweep.sh` (needs a Linux host or Docker `--cap-add=NET_ADMIN`; not run here).                                              |
 | Unit tests                                                                    | packet wire/CRC, SHA-256, chunker/assembler, out-of-order reassembly (`mvn test`)                                                                                                                                     |
+| Two-host transfer (macOS ↔ VMware Linux)                                      | done, 2026-09-03; both directions; 1 MiB SHA-256 verified (see below)                                                                                                                                                 |
 
 
 The LEAP numbers in this README are from the proxy-mode sweep of 2026-08-30
@@ -78,6 +79,61 @@ mvn package
 ./bin/leap send --help
 ./bin/leap receive --help
 ```
+
+## Two-host test (macOS ↔ VMware Linux)
+
+Localhost and the proxy-mode sweep measure the protocol. A second machine
+measures whether UDP actually leaves the box. On 2026-09-03 this was run
+between a macOS host and a VMware Ubuntu guest on a host-only / VMnet
+segment:
+
+| Role | Address |
+| --- | --- |
+| macOS (this repo) | `172.16.7.1` |
+| Ubuntu VM | `172.16.7.132` |
+| Port | UDP `4040` |
+
+Use the IPs on **that** subnet. Addresses in `100.64.0.0/10` (CGNAT / often
+Tailscale) are a different interface; sending there from the VM produced
+0% progress and no ACKs.
+
+**Receiver first** (Ubuntu example; copy `target/leap.jar` or clone and
+`mvn package`):
+
+```bash
+sudo ufw allow 4040/udp   # if a firewall is on
+java -jar leap.jar receive --port 4040 --output received/
+```
+
+**Then send** from macOS (no `--loss` on receive; that is fake app-layer drop):
+
+```bash
+./bin/leap send /tmp/leap-1m.bin --to 172.16.7.132:4040
+```
+
+Reverse: receive on the Mac (`--output /tmp/leap-in`), send from Linux to
+`172.16.7.1:4040`. Confirm with `sha256sum` on the receiver against the
+sender's `--debug` SHA-256 line (or `shasum -a 256` of the original file).
+
+### What this run showed
+
+| Transfer | Result |
+| --- | --- |
+| Mac → Linux, 16-byte text | delivered |
+| Mac → Linux, 1 MiB | delivered; SHA-256 `ecaf0ccaaa989b1afbbd0fcef7a972ef85022feb65d90f0b2d351cd22a365f6e` |
+| Mac → Linux, 10 MiB | delivered (~651 s, ~15.7 KB/s, ~70% efficiency) |
+| Linux → Mac, 17-byte text | delivered (`hello from linux`) |
+
+Throughput on this VMware UDP path stayed around **16 KB/s** with frequent
+timeouts and fast retransmits (`cwnd` often cut to 1). That is the virtual
+NIC dropping or reordering bursts, not a localhost number. Raising
+`--window` did not help while timeouts stayed this frequent. Tiny files
+often show one FIN-timeout then complete; that is delay, not a failed
+transfer.
+
+This is **not** a TCP-vs-LEAP-under-loss table, and it is **not** a
+`tc netem` kernel sweep. Those still need `scripts/linux_kernel_sweep.sh`
+on Linux (the guest can run it later; it was not part of this check).
 
 Example end-to-end transfer:
 
@@ -281,12 +337,12 @@ printf '\n' | ./bin/leap benchmark --loss-mode kernel --sizes 10m --trials 3 \
 sudo tc qdisc del dev lo root
 ```
 
-This Mac has no Linux VM/Docker available, so `docs/benchmark_kernel.csv`
-has not been produced here.
-
-That sweep is on the roadmap and will be filled in once a Linux box is
-available. The macOS scripts are kept in-tree because they're correct on
-older macOS and are the right starting point for a Linux port.
+A VMware Ubuntu guest is available on `172.16.7.132` and was used for
+two-host LEAP transfers (see above). `docs/benchmark_kernel.csv` from
+`scripts/linux_kernel_sweep.sh` / `tc netem` has **not** been produced
+yet; that sweep is still on the roadmap. The macOS pf scripts are kept
+in-tree because they are correct on older macOS and are the right
+starting point for the Linux port.
 
 ## Configuration knobs
 
@@ -314,7 +370,8 @@ through 20%+ packet loss; transfers abort by design rather than hang. Raise
 `MAX_RETRIES` if you need to survive worse paths.
 - **Single sender → single receiver, single file per session.** No multiplex,
 no resume, no SACK.
-- **No encryption, no auth, no NAT traversal.** Localhost / LAN tested only.
+- **No encryption, no auth, no NAT traversal.** Tested on localhost and a
+macOS ↔ VMware Linux host-only LAN, not over the public internet.
 - **No measured TCP-vs-LEAP head-to-head under loss in this README.** Honest
 comparison requires kernel-level packet drops. macOS 14+ doesn't shape
 `lo0` traffic via pf+dummynet (see "Kernel mode on macOS"), and a Linux
@@ -336,6 +393,7 @@ read as a comparison.
 - [x] Re-run proxy sweep with `MAX_RETRIES = 10` (2026-08-30; table above)
 - [x] Linux `tc netem` driver (`scripts/linux_kernel_sweep.sh`)
 - [ ] Run that driver on a Linux host / Docker and commit `docs/benchmark_kernel.csv`
+- [x] Two-host transfer, macOS ↔ VMware Ubuntu (2026-09-03)
 - [x] Unit tests (packet, SHA-256, chunker, out-of-order assemble)
 - [ ] Selective ACK (SACK) for tighter recovery on bursty loss
 - [ ] Resume support (persist last cumulative ACK on both sides)

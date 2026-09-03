@@ -8,7 +8,7 @@
 
 - **What:** Reliable file transfer over **UDP** with TCP-like behavior (sliding window, cumulative ACKs, fast retransmit, adaptive RTO, congestion control) and **end-to-end SHA-256** verification.
 - **Stack:** Java 11+, Maven; runnable as `./bin/leap` or `java -jar target/leap.jar` after `mvn package`.
-- **Proof:** Benchmark chart in `[docs/benchmark.png](docs/benchmark.png)`; methodology and caveats below.
+- **Proof:** Loopback benchmark chart in [`docs/benchmark.png`](docs/benchmark.png); **two-host UDP** (macOS ↔ VMware Linux) below. Methodology and caveats in both places.
 - **For reviewers:** [Architecture overview](ARCHITECTURE.md) · [Portfolio blurbs (LinkedIn/CV)](docs/showcase.md) · [Publishing a GitHub Release](RELEASING.md)
 
 > **Companion blog series:** [Building TCP From Scratch (1/6) on dev.to](https://dev.to/bhaveshghanchi/building-tcp-from-scratch-16-why-bother-when-tcp-exists-3aom). A 6-part walkthrough of this code, with measurements and the bugs and dead ends included.
@@ -55,8 +55,10 @@ than TCP; it's to:
 
 1. Show what every box in the TCP state machine actually does, with real code.
 2. Measure its behavior honestly under packet loss, with real numbers and a
-  documented methodology (including what the test environment does and
-   doesn't let us measure (see "Kernel mode on macOS" below).
+   documented methodology (including what the test environment does and
+   doesn't let us measure; see "Kernel mode on macOS" below).
+3. Move real UDP datagrams between **two hosts** (macOS and a Linux VM), not
+   only `localhost`, and verify the file with SHA-256 on the far side.
 
 The repository ships with a CLI (`leap send` / `leap receive`), a
 benchmark orchestrator that sweeps loss × file-size × trial, three different
@@ -134,6 +136,28 @@ transfer.
 This is **not** a TCP-vs-LEAP-under-loss table, and it is **not** a
 `tc netem` kernel sweep. Those still need `scripts/linux_kernel_sweep.sh`
 on Linux (the guest can run it later; it was not part of this check).
+
+### What this is, and what it is not
+
+LEAP is **transport layer (L4)** over UDP: sequence numbers, ACKs,
+retransmission, windows, congestion control. Packets in this test left one
+OS, crossed a VMware virtual Ethernet segment (`172.16.7.0/24`), and were
+reassembled on another OS. Reachability used ICMP and a real UDP listener
+on port 4040; the wrong interface (`100.64.0.0/10`) produced no ACKs until
+the VMnet addresses were used.
+
+It is **not** a Network Production Engineer portfolio by itself:
+
+- No BGP, OSPF, IS-IS, MPLS, GRE, or IPsec. Those are routing/WAN tools.
+  This repo does not implement them and will not list them.
+- No switching/VLAN/underlay design. The VM already had L2/L3 from VMware;
+  LEAP sat on top.
+- No Cisco / Juniper / Arista configs, no CCNA, no on-call or backbone ops.
+
+The honest claim is: user-space reliable transport, measured under loss,
+and demonstrated between two machines. The localhost `proxy` sweep is still
+the controlled loss experiment; two-host is the “datagrams actually moved”
+experiment.
 
 Example end-to-end transfer:
 
@@ -371,7 +395,10 @@ through 20%+ packet loss; transfers abort by design rather than hang. Raise
 - **Single sender → single receiver, single file per session.** No multiplex,
 no resume, no SACK.
 - **No encryption, no auth, no NAT traversal.** Tested on localhost and a
-macOS ↔ VMware Linux host-only LAN, not over the public internet.
+macOS ↔ VMware Linux host-only LAN, not over the public internet. The Linux
+side was a VM on the same Mac, not two physical NICs in a datacenter.
+- **Transport, not routing.** LEAP does not speak BGP, OSPF, IS-IS, or MPLS
+and is not a substitute for network operations experience.
 - **No measured TCP-vs-LEAP head-to-head under loss in this README.** Honest
 comparison requires kernel-level packet drops. macOS 14+ doesn't shape
 `lo0` traffic via pf+dummynet (see "Kernel mode on macOS"), and a Linux
